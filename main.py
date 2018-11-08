@@ -3,7 +3,7 @@
 '''Train CIFAR10 with PyTorch.'''
 from __future__ import print_function
 
-#import setGPU
+import setGPU
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -22,7 +22,7 @@ from utils import progress_bar
 
 import resnet
 import vgg
-
+import ipdb
 
 parser = argparse.ArgumentParser(description='PyTorch CIFAR10 Training')
 
@@ -75,10 +75,11 @@ print('==> Building model..')
 '''
 Critical - CHOICE OF ARCHITECTURE 
 '''
-if args.BN: 
-    net = vgg.vgg16_bn()
-else:
-    net = vgg.vgg11()
+net = resnet.ResNet18()
+#if args.BN: 
+#    net = vgg.vgg16_bn()
+#else:
+#    net = vgg.vgg11()
     
 # net = VGG('VGG19')
 # net = vgg.vgg11_bn()
@@ -132,19 +133,19 @@ if args.lrscheme == 'sgdr':
 elif args.lrscheme == 'warmup':
 
     ''' 
-    Warmup learning rate list  (increase from step_min to step_max in 20 epochs and step_decay at 60,120,150 epochs later
+    Warmup learning rate list  
     '''
-
-    step_max = 0.05
-    step_min = 0.000001
+    #(increase from step_min to step_max in 20 epochs and step_decay at 60,120,150 epochs later
+    step_max = args.lrmax
+    step_min = args.lrmin
     lrlist = []
-    warmup_len = 20
+    warmup_len = 40
     
     lrlist = [step_min + (step_max - step_min)*x/warmup_len for x in range(20)] + \
          [step_max]*40 + [step_max*0.1]*60 + [step_max * 0.01]*30 + [step_max*0.001]*150
     
     
-epochs_of_interest = [0,10,12,30,33,70,74,150,152,155]
+epochs_of_interest = [0,10,12,30,33,70,74,150,152,155] + [55,65,115,125,145,155]
         
 '''
 Dictionaries to log results
@@ -232,6 +233,10 @@ for epoch in range(start_epoch, start_epoch+args.epochs):
     
     if args.lrscheme == 'step_decay' and epoch in [60,120,150]:
         optimizer.param_groups[0]['lr'] *= 0.1
+        
+    if args.lrscheme == 'warmup':
+        optimizer.param_groups[0]['lr'] = lrlist[epoch]
+        
     
     train(epoch)
     test(epoch)
@@ -245,8 +250,8 @@ for epoch in range(start_epoch, start_epoch+args.epochs):
             os.mkdir('results/'+unique_run_str)
         
         
-        if epoch in epochs_of_interest:
-            torch.save(net,'./results/'+unique_run_str+'/'+'epoch_'+str(epoch)+'.t7')
+        #if epoch in epochs_of_interest or 1:
+        torch.save(net.state_dict(),'./results/'+unique_run_str+'/'+'epoch_'+str(epoch)+'.t7')
 
         np.save('./results/'+unique_run_str+'/'+'infep.npy',info_epoch)
         np.save('./results/'+unique_run_str+'/'+'infmn.npy',info_minibatch)
