@@ -29,16 +29,23 @@ parser = argparse.ArgumentParser(description='PyTorch CIFAR10 Training')
 parser.add_argument('--epochs', type=int, default=200, metavar='Nepoch', help='number of epochs to train (default: 20)')
 parser.add_argument('--train_bsz', type=int, default=100, metavar='train_bsz', help='training batch size (default: 100)')
 
+parser.add_argument('--batch_multiplier', type=int, default=1, metavar='btch_mul',
+                    help='scaling by this factor for large batch | see link https://medium.com/\
+                    @davidlmorton/increasing-mini-batch-size-without-increasing-memory-6794e10db672')
+
 parser.add_argument('--lrscheme', type=str,  default='sgdr', help='choices: sgdr, constant, step_decay, warmup')
 
 parser.add_argument('--lrmax', default=0.05, type=float, help='max sgdr learning rate') #should be 0.1 for resnet
 parser.add_argument('--lrmin', default=0.000001, type=float, help='min sgdr learning rate')
+parser.add_argument('--warmup_len', type=int, default=20, metavar='warmup_len', help='number of epochs spent in warmup')
+
 
 parser.add_argument('--BN', '-BN', action='store_true', help='batch norm in vgg architectures')
 parser.add_argument('--resume', '-r', action='store_true', help='resume from checkpoint')
 parser.add_argument('--dataparallel', '-dpar', action='store_true', help='resume from checkpoint')
 
 parser.add_argument('--donotsave', action='store_true', help='dont save models and logs | by default we save everything') 
+parser.add_argument('--savestr', type=str,  default='_', help='name your experiment - used for naming logdir')
 args = parser.parse_args()
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -139,7 +146,7 @@ elif args.lrscheme == 'warmup':
     step_max = args.lrmax
     step_min = args.lrmin
     lrlist = []
-    warmup_len = 40
+    warmup_len = args.warmup_len
     
     lrlist = [step_min + (step_max - step_min)*x/warmup_len for x in range(20)] + \
          [step_max]*40 + [step_max*0.1]*60 + [step_max * 0.01]*30 + [step_max*0.001]*150
@@ -155,6 +162,41 @@ Dictionaries to log results
 info_epoch = {'args_dict':vars(args),
               'epoch_index':[],'epoch_test_accuracy':[],'epoch_test_loss':[],'epoch_lr':[]}
 info_minibatch = {'epoch_n_batch':[],'batch_train_accuracy':[],'batch_train_loss':[]}
+
+
+# Training
+def train(epoch):
+    print('\nEpoch: %d' % epoch)
+    net.train()
+    train_loss = 0
+    correct = 0
+    total = 0
+    count = 0
+    for batch_idx, (inputs, targets) in enumerate(trainloader):
+        
+        inputs, targets = inputs.to(device), targets.to(device)
+        if count == 0:
+            optimizer.zero_grad()
+        outputs = net(inputs)
+        loss = criterion(outputs, targets)/ args.batch_multiplier
+        loss.backward()
+        if clip_flag: #and args.lrscheme == 'goyal_warmup' 
+            nn.utils.clip_grad_norm(net.parameters(), args.clip)
+        if count == 0:
+            optimizer.step()
+            count = args.batch_multiplier
+        count -= 1
+        train_loss += loss.item()
+        _, predicted = outputs.max(1)
+        total += targets.size(0)
+        correct += predicted.eq(targets).sum().item()
+
+        progress_bar(batch_idx, len(trainloader), 'Loss: %.3f | Acc: %.3f%% (%d/%d)'
+            % (train_loss/(batch_idx+1), 100.*correct/total, correct, total))
+        
+    info_minibatch['epoch_n_batch'].append((epoch,batch_idx))
+    info_minibatch['batch_train_accuracy'].append(100.*correct/total)
+    info_minibatch['batch_train_loss'].append(train_loss/(batch_idx+1))
         
 
 # Training
@@ -164,13 +206,21 @@ def train(epoch):
     train_loss = 0
     correct = 0
     total = 0
+    count = 0
+    
     for batch_idx, (inputs, targets) in enumerate(trainloader):
         inputs, targets = inputs.to(device), targets.to(device)
-        optimizer.zero_grad()
+        if count == 0:
+            optimizer.zero_grad()
         outputs = net(inputs)
         loss = criterion(outputs, targets)
         loss.backward()
-        optimizer.step()
+        
+        if count == 0:
+            optimizer.step()
+            count = args.batch_multiplier
+        
+        count -= 1
 
         train_loss += loss.item()
         _, predicted = outputs.max(1)
@@ -180,6 +230,9 @@ def train(epoch):
         progress_bar(batch_idx, len(trainloader), 'Loss: %.3f | Acc: %.3f%% (%d/%d)'
             % (train_loss/(batch_idx+1), 100.*correct/total, correct, total))
         
+        if args.train_bsz == 100 and batch_idx == 199:
+            torch.save(net.state_dict(),'./results/'+unique_run_str+ args.savestr+'/'+'iter_'+str(batch_idx)+'.t7')
+            
         info_minibatch['epoch_n_batch'].append((epoch,batch_idx))
         info_minibatch['batch_train_accuracy'].append(100.*correct/total)
         info_minibatch['batch_train_loss'].append(train_loss/(batch_idx+1))
@@ -228,6 +281,17 @@ def test(epoch):
 
 for epoch in range(start_epoch, start_epoch+args.epochs):
     
+    if not args.donotsave:
+        if not os.path.isdir('results'): 
+            os.mkdir('results')
+        if not os.path.isdir('results/'+unique_run_str + args.savestr):
+            os.mkdir('results/'+unique_run_str + args.savestr)
+            
+
+        torch.save(net.state_dict(),'./results/'+unique_run_str + args.savestr +'/'+'epoch_init'+'.t7')
+
+
+    
     if args.lrscheme == 'sgdr':
         optimizer.param_groups[0]['lr'] = lrlist[epoch]
     
@@ -243,15 +307,10 @@ for epoch in range(start_epoch, start_epoch+args.epochs):
     
     print('LR is '+str(optimizer.param_groups[0]['lr']))
 
+        
     if not args.donotsave:
-        if not os.path.isdir('results'): 
-            os.mkdir('results')
-        if not os.path.isdir('results/'+unique_run_str):
-            os.mkdir('results/'+unique_run_str)
-        
-        
         #if epoch in epochs_of_interest or 1:
-        torch.save(net.state_dict(),'./results/'+unique_run_str+'/'+'epoch_'+str(epoch)+'.t7')
+        torch.save(net.state_dict(),'./results/'+unique_run_str+ args.savestr +'/'+'epoch_'+str(epoch)+'.t7')
 
-        np.save('./results/'+unique_run_str+'/'+'infep.npy',info_epoch)
-        np.save('./results/'+unique_run_str+'/'+'infmn.npy',info_minibatch)
+        np.save('./results/'+unique_run_str+ args.savestr+'/'+'infep.npy',info_epoch)
+        np.save('./results/'+unique_run_str+ args.savestr+'/'+'infmn.npy',info_minibatch)
