@@ -37,7 +37,7 @@ transform_test = transforms.Compose([
 
 trainset = torchvision.datasets.CIFAR10(root='./data', train=True, download=True, transform=transform_train)
 '''Critical to set shuffle to False so we compute activations for same inputs across all models'''
-trainloader = torch.utils.data.DataLoader(trainset, batch_size=1000, shuffle=False, num_workers=2)    
+trainloader = torch.utils.data.DataLoader(trainset, batch_size=500, shuffle=False, num_workers=2)    
 
 testset = torchvision.datasets.CIFAR10(root='./data', train=False, download=True, transform=transform_test)
 testloader = torch.utils.data.DataLoader(testset, batch_size=100, shuffle=False, num_workers=2)
@@ -45,6 +45,7 @@ testloader = torch.utils.data.DataLoader(testset, batch_size=100, shuffle=False,
 parser = argparse.ArgumentParser(description='PyTorch CIFAR10 Training')
 
 parser.add_argument('--save_acts', action='store_true', help='save activations | by default we dont save everything') 
+parser.add_argument('--model_index', type=int, default=0, metavar='Nepoch', help='number of epochs to train (default: 0)')
 args = parser.parse_args()
 '''
 load_path_list = ['results/15419857841740403LB_const_largelr/epoch_init.t7',
@@ -61,7 +62,11 @@ load_path_list = ['results/15420174015569954LB_stepdecay_largelr/epoch_init.t7',
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 save_things = args.save_acts
 
-for path_ind,load_path in enumerate(load_path_list[4:5]):
+
+
+i = args.model_index
+
+for path_ind,load_path in enumerate(load_path_list[i:i+1]):
     
     print('Path # :  '+ str(path_ind) + ' / ' + str(len(load_path_list))  )
 
@@ -88,9 +93,10 @@ for path_ind,load_path in enumerate(load_path_list[4:5]):
 
     for batch_idx, (inputs, targets) in enumerate(trainloader,0): #the 0 in the argument resets the trainloader
         
-        print('batch_id # :  ' + str(batch_idx) + ' / 10')
+        print('batch_id # :  ' + str(batch_idx) + ' / 20')
+        
     
-        if batch_idx < 10:
+        if batch_idx < 20:
             
             print('Now on batch : ' + str(batch_idx))
 

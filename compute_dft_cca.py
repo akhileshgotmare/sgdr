@@ -10,13 +10,13 @@ import os.path
 import ipdb
 
 '''
-'results/15419857841740403LB_const_largelr/epoch_20.t7',
+'results/15420174015569954LB_stepdecay_largelr/epoch_20.t7',
 'results/15419858381338964SB_stepdcy_small_lr/iter_199.t7',
 'results/15419858030298254LB_warmup_largelr/epoch_init.t7',
 '''
 
 
-path = '/mlodata1/gotmare/sgdr/results/15419857841740403LB_const_largelr/activations_new'
+path = '/mlodata1/gotmare/sgdr/results/15419858030298254LB_warmup_largelr/activations_newest'
 
 mode = 'diagonal' #'custom col'
 
@@ -39,7 +39,7 @@ layer_set = [str(x) for x in range(N_layers) if str(x) not in completed_set]
 
 def stack_minibatches(epoch, layer):
     
-    act_path_list = [epoch + '/layer_' + layer + '_batch_' + str(batch_id) + '.npy' for batch_id in range(10)]
+    act_path_list = [epoch + '/layer_' + layer + '_batch_' + str(batch_id) + '.npy' for batch_id in range(20)]
     act_list = [np.load(act_path) for act_path in act_path_list]
     
     L = np.vstack(act_list)
@@ -65,7 +65,7 @@ for base_layer in reversed(layer_set):
         L1 = stack_minibatches(epochA, layerA)
         L2 = stack_minibatches(epochB, layerB)
         
-        ipdb.set_trace()
+        #ipdb.set_trace()
         
         L1 = np.transpose(L1,(0,2,3,1)) ; L2 = np.transpose(L2,(0,2,3,1))
         

@@ -38,7 +38,9 @@ parser.add_argument('--lrscheme', type=str,  default='sgdr', help='choices: sgdr
 parser.add_argument('--lrmax', default=0.05, type=float, help='max sgdr learning rate') #should be 0.1 for resnet
 parser.add_argument('--lrmin', default=0.000001, type=float, help='min sgdr learning rate')
 parser.add_argument('--warmup_len', type=int, default=20, metavar='warmup_len', help='number of epochs spent in warmup')
-
+parser.add_argument('--freeze_classifier', action='store_true',
+                    help='do not update the classifier stack (just one FC layer for resnet) for the first 20 epochs') 
+parser.add_argument('--clip', default=10000, type=float, help='gclip value | by default we have no gclip') 
 
 parser.add_argument('--BN', '-BN', action='store_true', help='batch norm in vgg architectures')
 parser.add_argument('--resume', '-r', action='store_true', help='resume from checkpoint')
@@ -102,6 +104,7 @@ net = resnet.ResNet18()
 # net = SENet18()
 # net = ShuffleNetV2(1)
 net = net.to(device)
+#ipdb.set_trace()
 
 if device == 'cuda' and args.dataparallel:
     net = torch.nn.DataParallel(net)
@@ -117,7 +120,20 @@ if args.resume:
     start_epoch = checkpoint['epoch']
 
 criterion = nn.CrossEntropyLoss()
-optimizer = optim.SGD(net.parameters(), lr=args.lrmax, momentum=0.9, weight_decay=5e-4)
+
+if args.freeze_classifier:
+    
+    optimizer = optim.SGD([
+                    {'params': net.conv1.parameters()},
+                    {'params': net.layer1.parameters()},
+                    {'params': net.layer2.parameters()},
+                    {'params': net.layer3.parameters()},
+                    {'params': net.layer4.parameters()},
+                    {'params': net.linear.parameters(), 'lr': 0.00}
+                ], lr=args.lrmax, momentum=0.9, weight_decay=5e-4)
+else:
+    
+    optimizer = optim.SGD(net.parameters(), lr=args.lrmax, momentum=0.9, weight_decay=5e-4)
 
 if args.lrscheme == 'sgdr': 
     ''' 
@@ -180,7 +196,7 @@ def train(epoch):
         outputs = net(inputs)
         loss = criterion(outputs, targets)/ args.batch_multiplier
         loss.backward()
-        if clip_flag: #and args.lrscheme == 'goyal_warmup' 
+        if not args.clip== 10000: #and args.lrscheme == 'goyal_warmup' 
             nn.utils.clip_grad_norm(net.parameters(), args.clip)
         if count == 0:
             optimizer.step()
