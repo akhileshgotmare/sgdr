@@ -84,9 +84,12 @@ print('==> Building model..')
 '''
 Critical - CHOICE OF ARCHITECTURE 
 '''
-net = resnet.ResNet18()
+#net = resnet.ResNet18()
+#net = vgg.vgg16()
+net = vgg.vgg11()
 #if args.BN: 
 #    net = vgg.vgg16_bn()
+    
 #else:
 #    net = vgg.vgg11()
     
@@ -246,7 +249,7 @@ def train(epoch):
         progress_bar(batch_idx, len(trainloader), 'Loss: %.3f | Acc: %.3f%% (%d/%d)'
             % (train_loss/(batch_idx+1), 100.*correct/total, correct, total))
         
-        if args.train_bsz == 100 and batch_idx == 199:
+        if args.train_bsz == 100 and batch_idx == 199 and not args.donotsave:
             torch.save(net.state_dict(),'./results/'+unique_run_str+ args.savestr+'/'+'iter_'+str(batch_idx)+'.t7')
             
         info_minibatch['epoch_n_batch'].append((epoch,batch_idx))

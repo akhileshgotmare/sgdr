@@ -50,7 +50,7 @@ def stack_minibatches(epoch, layer):
     
     return L
 
-for base_layer in reversed(layer_set):
+for base_layer in (layer_set[2]):
     
     print('On Layer: '+ base_layer)
     
@@ -62,6 +62,13 @@ for base_layer in reversed(layer_set):
     
     for pair_ind, (layerA,layerB) in enumerate(layers_to_compare):
         
+        save_path = store_results + '/layer_' + base_layer + '_and_X' + \
+                    '/approximate_' + str(n_bigdata) + '_dftcca_models_' + \
+                    layerA + '_and_' + layerB + '.df'
+        
+        if os.path.isfile(save_path):
+            print('cca o/p file for this pair already exists, skipping ahead')
+        
         L1 = stack_minibatches(epochA, layerA)
         L2 = stack_minibatches(epochB, layerB)
         
@@ -69,10 +76,9 @@ for base_layer in reversed(layer_set):
         
         L1 = np.transpose(L1,(0,2,3,1)) ; L2 = np.transpose(L2,(0,2,3,1))
         
+        
+        
         df_output = dft_ccas.fourier_ccas(L1, L2) 
-        save_path = store_results + '/layer_' + base_layer + '_and_X' + \
-                    '/approximate_' + str(n_bigdata) + '_dftcca_models_' + \
-                    layerA + '_and_' + layerB + '.df'
         
         df_output.to_pickle(save_path)
         

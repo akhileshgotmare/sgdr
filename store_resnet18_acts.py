@@ -82,7 +82,7 @@ for path_ind,load_path in enumerate(load_path_list[i:i+1]):
     net.eval()
 
     #dir containing activations from different models for this run (eg. results/1555253232532/activations/)
-    activations_path = os.path.abspath(os.path.join(load_path, os.pardir)) + '/activations_newest' 
+    activations_path = os.path.abspath(os.path.join(load_path, os.pardir)) + '/activations_newest_correct' 
     model_name = os.path.basename(load_path) #eg. epoch_0.t7
 
     if not os.path.isdir(activations_path):
